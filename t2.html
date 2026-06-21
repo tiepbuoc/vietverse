@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Vietverse Admin — Quản lý nội dung tỉnh thành</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+    import {
+      getFirestore,
+      doc, getDoc, setDoc, deleteDoc,
+      collection, getDocs
+    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+    const app = initializeApp({
+      apiKey: "AIzaSyAq52d5zrc5rN6UFflwb22bJD9GSjdS0ts",
+      authDomain: "vvss-b7a49.firebaseapp.com",
+      projectId: "vvss-b7a49",
+      storageBucket: "vvss-b7a49.firebasestorage.app",
+      messagingSenderId: "562837285603",
+      appId: "1:562837285603:web:e75d7a983e1ef644c9b3d6",
+      measurementId: "G-BRSGSK6MSM"
+    });
+    const db = getFirestore(app);
+
+    window._db        = db;
+    window._fsDoc     = doc;
+    window._fsGetDoc  = getDoc;
+    window._fsSetDoc  = setDoc;
+    window._fsDelete  = deleteDoc;
+    window._fsColl    = collection;
+    window._fsGetDocs = getDocs;
+    window._fbReady   = true;
+    document.dispatchEvent(new Event('fb-ready'));
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --red: #d32f2f;
+      --red-dark: #b71c1c;
+      --red-light: #fff0f0;
+      --sidebar-w: 288px;
+      --nh: 64px;
+    }
+    body {
+      font-family: 'Be Vietnam Pro', sans-serif;
+      background: #f4f4f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── TOPBAR ── */
+    #topbar {
+      height: var(--nh);
+      background: white;
+      display: flex;
+      align-items: center;
+      padding: 0 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      z-index: 100;
+      gap: 14px;
+      flex-shrink: 0;
+      border-bottom-left-radius: 20px;
+      border-bottom-right-radius: 20px;
+    }
+    .topbar-logo {
+      height: 36px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .topbar-logo:hover { opacity: .82; }
+    .topbar-logo-fallback {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(135deg, #d32f2f, #ff6b35);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Montserrat', sans-serif; font-weight: 900;
+      color: white; font-size: 20px; flex-shrink: 0;
+    }
+    .topbar-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 900; font-size: 18px;
+      color: #1a1a2e; flex: 1;
+    }
+    .topbar-title span { color: var(--red); }
+
+    /* Firebase status badge */
+    #fb-status {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; font-weight: 700;
+      padding: 6px 14px; border-radius: 20px;
+      background: #f5f5f5; color: #999;
+      transition: all 0.3s;
+    }
+    #fb-status.connected { background: #e8f5e9; color: #2e7d32; }
+    #fb-status.error     { background: #ffebee; color: var(--red); }
+    .fb-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor;
+      animation: fbPulse 2s infinite;
+    }
+    @keyframes fbPulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    .btn-export {
+      background: #f0f0f0; color: #444; border: none;
+      border-radius: 10px; padding: 9px 18px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 13px;
+      cursor: pointer; display: flex; align-items: center; gap: 7px;
+      transition: background 0.2s;
+    }
+    .btn-export:hover { background: #e0e0e0; }
+    .btn-save-all {
+      background: var(--red); color: white; border: none;
+      border-radius: 10px; padding: 9px 22px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 13px;
+      cursor: pointer; display: flex; align-items: center; gap: 7px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-save-all:hover { background: var(--red-dark); transform: scale(1.02); }
+    .btn-save-all:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ── LAYOUT ── */
+    #layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    #sidebar {
+      width: var(--sidebar-w); background: white;
+      border-right: 1px solid #eeeeee;
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .sidebar-head {
+      padding: 14px 18px 10px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      font-size: 11px; color: #999; letter-spacing: 1px; text-transform: uppercase;
+      border-bottom: 1px solid #eee;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .btn-add-province {
+      background: var(--red); color: white; border: none;
+      border-radius: 8px; padding: 6px 12px; font-size: 12px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      transition: background 0.2s;
+    }
+    .btn-add-province:hover { background: var(--red-dark); }
+    .province-search { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; }
+    .province-search input {
+      width: 100%; padding: 8px 12px; border: 1.5px solid #e0e0e0;
+      border-radius: 10px; font-family: 'Be Vietnam Pro', sans-serif;
+      font-size: 13px; outline: none; transition: border 0.2s;
+    }
+    .province-search input:focus { border-color: var(--red); }
+    #province-list { flex: 1; overflow-y: auto; }
+    .prov-item {
+      padding: 12px 18px; cursor: pointer;
+      border-bottom: 1px solid #f5f5f5;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: background 0.12s;
+    }
+    .prov-item:hover { background: var(--red-light); }
+    .prov-item.active { background: var(--red-light); border-left: 3px solid var(--red); }
+    .prov-item .pname { font-weight: 700; font-size: 13px; color: #1a1a2e; }
+    .prov-item .pmeta { display: flex; align-items: center; gap: 6px; }
+    .prov-item .pcount {
+      font-size: 11px; color: #aaa; background: #f0f0f0;
+      border-radius: 20px; padding: 2px 8px;
+    }
+    .prov-item .pcount.has-data { background: #ffe8ea; color: var(--red); }
+    .prov-item .btn-del-prov {
+      background: none; border: none; color: #ccc; cursor: pointer;
+      font-size: 12px; padding: 2px 5px;
+      transition: color 0.2s; display: none;
+    }
+    .prov-item:hover .btn-del-prov { display: block; }
+    .prov-item .btn-del-prov:hover { color: var(--red); }
+    .prov-saving {
+      width: 8px; height: 8px; border-radius: 50%;
+      border: 1.5px solid var(--red);
+      border-top-color: transparent;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── CONTENT ── */
+    #content {
+      flex: 1; overflow-y: auto; padding: 24px 28px;
+      scrollbar-width: thin; scrollbar-color: #ddd transparent;
+    }
+    #content::-webkit-scrollbar { width: 5px; }
+    #content::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+
+    #no-selection {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 80%; color: #ccc; gap: 14px; text-align: center;
+    }
+    #no-selection svg { width: 52px; height: 52px; stroke: #ddd; fill: none; stroke-width: 1.5; }
+    #no-selection p { font-size: 15px; line-height: 1.6; }
+
+    #prov-editor { display: none; }
+
+    .editor-section {
+      background: white; border-radius: 16px;
+      padding: 22px 24px; margin-bottom: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .editor-section h3 {
+      font-family: 'Montserrat', sans-serif; font-weight: 900;
+      font-size: 13px; color: var(--red); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* Form fields */
+    .field-group { margin-bottom: 14px; }
+    .field-group label {
+      display: block; font-size: 12px; font-weight: 700;
+      color: #666; margin-bottom: 5px; letter-spacing: 0.2px;
+    }
+    .field-group input[type="text"],
+    .field-group input[type="url"],
+    .field-group textarea {
+      width: 100%; padding: 9px 13px;
+      border: 1.5px solid #e0e0e0; border-radius: 10px;
+      font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px;
+      color: #333; outline: none; transition: border 0.2s;
+      resize: vertical;
+    }
+    .field-group input:focus,
+    .field-group textarea:focus { border-color: var(--red); }
+    .field-group textarea { min-height: 76px; }
+
+    /* Image preview */
+    .img-preview-wrap { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+    .img-preview {
+      width: 76px; height: 48px; border-radius: 8px;
+      border: 1.5px solid #e0e0e0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+      background: #f5f5f5; flex-shrink: 0;
+    }
+    .img-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .img-preview svg { width: 22px; height: 22px; stroke: #ccc; fill: none; stroke-width: 1.5; }
+
+    /* Features */
+    .features-list { display: flex; flex-direction: column; gap: 7px; }
+    .feature-row { display: flex; align-items: center; gap: 7px; }
+    .feature-row input { flex: 1; }
+    .btn-remove {
+      background: none; border: none; color: #ccc; cursor: pointer;
+      font-size: 16px; padding: 4px; transition: color 0.2s; line-height: 1;
+    }
+    .btn-remove:hover { color: var(--red); }
+    .btn-add-field {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--red-light); color: var(--red);
+      border: 1.5px dashed var(--red); border-radius: 10px;
+      padding: 8px 14px; cursor: pointer;
+      font-family: 'Be Vietnam Pro', sans-serif;
+      font-weight: 700; font-size: 13px;
+      transition: all 0.2s; width: 100%; margin-top: 8px;
+    }
+    .btn-add-field:hover { background: #ffd5da; }
+
+    /* Items grid */
+    .items-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+    .item-card {
+      background: #fafafa; border: 1.5px solid #eee;
+      border-radius: 14px; overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+    .item-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+    .item-card-head {
+      background: var(--red); padding: 9px 13px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .item-card-head span {
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      font-size: 12px; color: white;
+    }
+    .btn-del-item {
+      background: rgba(255,255,255,0.2); border: none; color: white;
+      border-radius: 6px; padding: 3px 8px; cursor: pointer;
+      font-size: 11px; transition: background 0.2s;
+    }
+    .btn-del-item:hover { background: rgba(255,255,255,0.4); }
+    .item-card-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .item-field label { font-size: 11px; font-weight: 700; color: #999; margin-bottom: 3px; display: block; }
+    .item-field input[type="text"],
+    .item-field input[type="url"],
+    .item-field textarea {
+      width: 100%; padding: 7px 11px;
+      border: 1.5px solid #e0e0e0; border-radius: 8px;
+      font-family: 'Be Vietnam Pro', sans-serif; font-size: 12px;
+      color: #333; outline: none; transition: border 0.2s; resize: vertical;
+    }
+    .item-field input:focus, .item-field textarea:focus { border-color: var(--red); }
+    .item-field textarea { min-height: 64px; }
+    .img-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    /* Section tabs */
+    .section-tab-bar { display: flex; gap: 8px; margin-bottom: 18px; }
+    .section-tab {
+      flex: 1; padding: 9px; border: 2px solid #e0e0e0;
+      border-radius: 10px; background: white; cursor: pointer;
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      font-size: 12px; color: #aaa; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .section-tab.active { border-color: var(--red); background: var(--red-light); color: var(--red); }
+    .section-tab-content { display: none; }
+    .section-tab-content.active { display: block; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: #1a1a2e; color: white; padding: 11px 26px;
+      border-radius: 12px; font-weight: 700; font-size: 13px;
+      opacity: 0; pointer-events: none; z-index: 9999;
+      transition: opacity 0.3s; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { background: #2e7d32; }
+    #toast.error   { background: #b71c1c; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: all; }
+    .modal {
+      background: white; border-radius: 20px; padding: 30px;
+      width: 400px; box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+    }
+    .modal h3 {
+      font-family: 'Montserrat', sans-serif; font-weight: 900;
+      font-size: 18px; color: #1a1a2e; margin-bottom: 18px;
+    }
+    .modal .btn-row { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
+    .btn-cancel {
+      background: #f0f0f0; color: #333; border: none;
+      border-radius: 10px; padding: 9px 18px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-cancel:hover { background: #e0e0e0; }
+    .btn-confirm {
+      background: var(--red); color: white; border: none;
+      border-radius: 10px; padding: 9px 18px;
+      font-family: 'Montserrat', sans-serif; font-weight: 700;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .btn-confirm:hover { background: var(--red-dark); }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <img src="logo.png" alt="Vietverse" class="topbar-logo"
+       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+  <div class="topbar-logo-fallback" style="display:none">V</div>
+  <div class="topbar-title">Admin — <span>Quản lý nội dung tỉnh thành</span></div>
+
+  <div id="fb-status">
+    <div class="fb-dot"></div>
+    <span id="fb-status-text">Đang kết nối...</span>
+  </div>
+
+  <button class="btn-export" onclick="exportData()">
+    ⬇ Xuất JSON
+  </button>
+  <button class="btn-save-all" id="btnSaveAll" onclick="saveAll()">
+    💾 Lưu lên Firestore
+  </button>
+</div>
+
+<!-- LAYOUT -->
+<div id="layout">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-head">
+      Tỉnh thành
+      <button class="btn-add-province" onclick="showAddProvince()">+ Thêm</button>
+    </div>
+    <div class="province-search">
+      <input type="text" placeholder="🔍  Tìm tỉnh thành..." id="searchInput" oninput="renderProvinceList()"/>
+    </div>
+    <div id="province-list"></div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <div id="no-selection">
+      <svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+      <p>Chọn một tỉnh thành từ danh sách<br>để bắt đầu chỉnh sửa nội dung</p>
+    </div>
+
+    <div id="prov-editor">
+      <!-- Province title -->
+      <div style="margin-bottom:18px; display:flex; align-items:center; gap:12px;">
+        <div style="background:var(--red);color:white;border-radius:12px;padding:10px 22px;font-family:Montserrat;font-weight:900;font-size:20px;letter-spacing:1px;" id="editorTitle">—</div>
+        <div style="font-size:12px;color:#888;">ID: <code id="editorId" style="background:#f0f0f0;padding:3px 8px;border-radius:6px;font-size:12px;"></code></div>
+        <div id="provSavingBadge" style="display:none;align-items:center;gap:6px;font-size:12px;color:#aaa;">
+          <div class="prov-saving"></div> Đang lưu...
+        </div>
+      </div>
+
+      <!-- BACKGROUNDS -->
+      <div class="editor-section">
+        <h3>🖼 Background buttons</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+          <div>
+            <div class="field-group">
+              <label>🏛 Background nút LỊCH SỬ (URL)</label>
+              <input type="url" id="historyBgUrl" placeholder="https://..." oninput="previewImg('historyBgUrl','prevHist')"/>
+            </div>
+            <div class="img-preview-wrap">
+              <div class="img-preview" id="prevHist">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </div>
+              <span style="font-size:11px;color:#aaa;">Preview</span>
+            </div>
+          </div>
+          <div>
+            <div class="field-group">
+              <label>🐉 Background nút VĂN HÓA (URL)</label>
+              <input type="url" id="cultureBgUrl" placeholder="https://..." oninput="previewImg('cultureBgUrl','prevCult')"/>
+            </div>
+            <div class="img-preview-wrap">
+              <div class="img-preview" id="prevCult">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </div>
+              <span style="font-size:11px;color:#aaa;">Preview</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURES -->
+      <div class="editor-section">
+        <h3>⭐ Đặc điểm nổi bật</h3>
+        <div class="features-list" id="featuresList"></div>
+        <button class="btn-add-field" onclick="addFeature()">+ Thêm đặc điểm</button>
+      </div>
+
+      <!-- HISTORY & CULTURE TABS -->
+      <div class="editor-section">
+        <div class="section-tab-bar">
+          <button class="section-tab active" onclick="switchTab('history',this)">🏛 LỊCH SỬ</button>
+          <button class="section-tab" onclick="switchTab('culture',this)">🐉 VĂN HÓA</button>
+        </div>
+
+        <div class="section-tab-content active" id="stc-history">
+          <div style="font-family:Montserrat;font-weight:700;font-size:11px;color:#bbb;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.5px;">Các mục Lịch sử</div>
+          <div class="items-grid" id="historyItemsGrid"></div>
+          <button class="btn-add-field" onclick="addItem('history')">+ Thêm mục lịch sử</button>
+        </div>
+
+        <div class="section-tab-content" id="stc-culture">
+          <div style="font-family:Montserrat;font-weight:700;font-size:11px;color:#bbb;margin-bottom:14px;text-transform:uppercase;letter-spacing:0.5px;">Các mục Văn hóa</div>
+          <div class="items-grid" id="cultureItemsGrid"></div>
+          <button class="btn-add-field" onclick="addItem('culture')">+ Thêm mục văn hóa</button>
+        </div>
+      </div>
+
+    </div><!-- /prov-editor -->
+  </div><!-- /content -->
+</div><!-- /layout -->
+
+<!-- ADD PROVINCE MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3>➕ Thêm tỉnh thành mới</h3>
+    <div class="field-group">
+      <label>ID tỉnh (không dấu, không cách — ví dụ: HaiPhong)</label>
+      <input type="text" id="newProvId" placeholder="HaiPhong"/>
+    </div>
+    <div class="field-group">
+      <label>Tên tỉnh (hiển thị)</label>
+      <input type="text" id="newProvName" placeholder="Hải Phòng"/>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="hideAddProvince()">Hủy</button>
+      <button class="btn-confirm" onclick="addProvince()">Thêm</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════
+   STATE
+══════════════════════════════ */
+let provinceNames   = {};  // { id: displayName }
+let provinceContent = {};  // { id: { historyBg, cultureBg, features[], history[], culture[] } }
+let currentProvId   = null;
+let dirtyProvIds    = new Set();
+
+/* ══ WAIT FOR FIREBASE ══ */
+function waitForFb() {
+  if (window._fbReady) return Promise.resolve();
+  return new Promise(res => document.addEventListener('fb-ready', res, { once: true }));
+}
+
+/* ══ FIREBASE STATUS ══ */
+async function checkFirebaseConnection() {
+  try {
+    await waitForFb();
+    setFbStatus('connected', '🔥 Firestore');
+    loadAllFromFirestore();
+  } catch(e) {
+    setFbStatus('error', 'Lỗi kết nối');
+  }
+}
+
+function setFbStatus(state, text) {
+  const el = document.getElementById('fb-status');
+  el.className = 'fb-status ' + state;
+  el.id = 'fb-status';
+  el.querySelector('span').textContent = text;
+  // rebuild class properly
+  el.classList.add(state);
+}
+
+/* ══ LOAD ALL PROVINCES FROM FIRESTORE ══ */
+async function loadAllFromFirestore() {
+  await waitForFb();
+  try {
+    const snap = await window._fsGetDocs(window._fsColl(window._db, 'provinces'));
+    provinceNames   = {};
+    provinceContent = {};
+    snap.forEach(docSnap => {
+      const id   = docSnap.id;
+      const data = docSnap.data();
+      provinceNames[id]   = data.name || id;
+      provinceContent[id] = {
+        historyBg:  data.historyBg  || '',
+        cultureBg:  data.cultureBg  || '',
+        features:   data.features   || [],
+        history:    data.history    || [],
+        culture:    data.culture    || []
+      };
+    });
+
+    // Demo data if Firestore empty
+    if (Object.keys(provinceNames).length === 0) {
+      addDemoData();
+    }
+
+    renderProvinceList();
+    toast('✅ Đã tải dữ liệu từ Firestore', 'success');
+  } catch(e) {
+    console.error('Firestore load error:', e);
+    toast('❌ Lỗi tải dữ liệu: ' + e.message, 'error');
+    // Load demo data as fallback
+    addDemoData();
+    renderProvinceList();
+  }
+}
+
+function addDemoData() {
+  provinceNames = { "HaiPhong": "Hải Phòng", "HaNoi": "Hà Nội" };
+  provinceContent = {
+    "HaiPhong": {
+      historyBg: "", cultureBg: "",
+      features: ["Thành phố cảng lớn nhất miền Bắc", "Di sản Bạch Đằng Giang"],
+      history: [{ title: "Chiến thắng Bạch Đằng", thumbUrl: "", text: "Sông Bạch Đằng ghi dấu ba trận chiến lịch sử vĩ đại của dân tộc...", img1: "", img2: "" }],
+      culture: [{ title: "Lễ hội Chọi trâu", thumbUrl: "", text: "Lễ hội Chọi trâu Đồ Sơn là di sản văn hóa phi vật thể quốc gia...", img1: "", img2: "" }]
+    },
+    "HaNoi": { historyBg: "", cultureBg: "", features: [], history: [], culture: [] }
+  };
+}
+
+/* ══ SAVE PROVINCE TO FIRESTORE ══ */
+async function saveProvinceToFirestore(id) {
+  await waitForFb();
+  const data = {
+    name:      provinceNames[id] || id,
+    historyBg: provinceContent[id]?.historyBg  || '',
+    cultureBg: provinceContent[id]?.cultureBg  || '',
+    features:  provinceContent[id]?.features   || [],
+    history:   provinceContent[id]?.history    || [],
+    culture:   provinceContent[id]?.culture    || []
+  };
+  const ref = window._fsDoc(window._db, 'provinces', id);
+  await window._fsSetDoc(ref, data, { merge: true });
+  dirtyProvIds.delete(id);
+}
+
+/* ══ DELETE PROVINCE FROM FIRESTORE ══ */
+async function deleteFromFirestore(id) {
+  await waitForFb();
+  const ref = window._fsDoc(window._db, 'provinces', id);
+  await window._fsDelete(ref);
+}
+
+/* ══ PROVINCE LIST ══ */
+function renderProvinceList() {
+  const q    = (document.getElementById('searchInput').value || '').toLowerCase();
+  const list = document.getElementById('province-list');
+  const ids  = Object.keys(provinceNames).filter(id =>
+    id.toLowerCase().includes(q) || (provinceNames[id]||'').toLowerCase().includes(q)
+  );
+  list.innerHTML = ids.map(id => {
+    const c      = provinceContent[id] || {};
+    const total  = (c.history||[]).length + (c.culture||[]).length;
+    const dirty  = dirtyProvIds.has(id);
+    return `<div class="prov-item ${id === currentProvId ? 'active' : ''}" onclick="selectProvince('${id}')">
+      <span class="pname">${escHtml(provinceNames[id])}${dirty ? ' <span style="color:var(--red);font-size:10px;">●</span>' : ''}</span>
+      <div class="pmeta">
+        <span class="pcount ${total > 0 ? 'has-data' : ''}">${total} mục</span>
+        <button class="btn-del-prov" onclick="deleteProvince(event,'${id}')" title="Xóa">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ══ SELECT PROVINCE ══ */
+function selectProvince(id) {
+  currentProvId = id;
+  renderProvinceList();
+  renderEditor();
+}
+
+/* ══ EDITOR ══ */
+function renderEditor() {
+  if (!currentProvId) return;
+  document.getElementById('no-selection').style.display   = 'none';
+  document.getElementById('prov-editor').style.display    = 'block';
+  document.getElementById('editorTitle').textContent      = (provinceNames[currentProvId] || currentProvId).toUpperCase();
+  document.getElementById('editorId').textContent         = currentProvId;
+
+  const c = provinceContent[currentProvId] || {};
+  document.getElementById('historyBgUrl').value = c.historyBg || '';
+  document.getElementById('cultureBgUrl').value = c.cultureBg || '';
+  previewImg('historyBgUrl', 'prevHist');
+  previewImg('cultureBgUrl', 'prevCult');
+
+  renderFeatures(c.features || []);
+  renderItems('history', c.history || []);
+  renderItems('culture', c.culture || []);
+}
+
+/* Features */
+function renderFeatures(feats) {
+  document.getElementById('featuresList').innerHTML = feats.map((f, i) => `
+    <div class="feature-row">
+      <input type="text" value="${escHtml(f)}" placeholder="Đặc điểm..."
+             oninput="updateFeature(${i},this.value)" onchange="markDirty()"/>
+      <button class="btn-remove" onclick="removeFeature(${i})" title="Xóa">✕</button>
+    </div>
+  `).join('');
+}
+
+function addFeature() {
+  if (!currentProvId) return;
+  ensureContent();
+  provinceContent[currentProvId].features.push('');
+  renderFeatures(provinceContent[currentProvId].features);
+  markDirty();
+}
+function updateFeature(i, val) {
+  if (!currentProvId) return;
+  ensureContent();
+  provinceContent[currentProvId].features[i] = val;
+}
+function removeFeature(i) {
+  if (!currentProvId) return;
+  ensureContent();
+  provinceContent[currentProvId].features.splice(i, 1);
+  renderFeatures(provinceContent[currentProvId].features);
+  markDirty();
+}
+
+/* Items */
+function renderItems(type, items) {
+  const gridId = type === 'history' ? 'historyItemsGrid' : 'cultureItemsGrid';
+  document.getElementById(gridId).innerHTML = items.map((item, idx) => `
+    <div class="item-card">
+      <div class="item-card-head">
+        <span>#${idx+1} ${escHtml(item.title || 'Chưa đặt tên')}</span>
+        <button class="btn-del-item" onclick="deleteItem('${type}',${idx})">🗑 Xóa</button>
+      </div>
+      <div class="item-card-body">
+        <div class="item-field">
+          <label>Tên</label>
+          <input type="text" value="${escHtml(item.title||'')}" placeholder="Tên mục..."
+                 oninput="updateItem('${type}',${idx},'title',this.value);this.closest('.item-card').querySelector('.item-card-head span').textContent='#${idx+1} '+this.value"/>
+        </div>
+        <div class="item-field">
+          <label>Ảnh thumbnail (URL)</label>
+          <input type="url" value="${escHtml(item.thumbUrl||'')}" placeholder="https://..."
+                 onchange="updateItem('${type}',${idx},'thumbUrl',this.value)"/>
+        </div>
+        <div class="item-field">
+          <label>Nội dung</label>
+          <textarea placeholder="Mô tả chi tiết..." onchange="updateItem('${type}',${idx},'text',this.value)">${escHtml(item.text||'')}</textarea>
+        </div>
+        <div class="item-field">
+          <label>Ảnh minh họa</label>
+          <div class="img-row">
+            <input type="url" value="${escHtml(item.img1||'')}" placeholder="Ảnh 1..." onchange="updateItem('${type}',${idx},'img1',this.value)"/>
+            <input type="url" value="${escHtml(item.img2||'')}" placeholder="Ảnh 2..." onchange="updateItem('${type}',${idx},'img2',this.value)"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addItem(type) {
+  if (!currentProvId) return;
+  ensureContent();
+  provinceContent[currentProvId][type].push({ title: '', thumbUrl: '', text: '', img1: '', img2: '' });
+  renderItems(type, provinceContent[currentProvId][type]);
+  markDirty();
+}
+function updateItem(type, idx, field, val) {
+  if (!currentProvId) return;
+  ensureContent();
+  provinceContent[currentProvId][type][idx][field] = val;
+  markDirty();
+}
+function deleteItem(type, idx) {
+  if (!currentProvId) return;
+  if (!confirm('Xóa mục này?')) return;
+  ensureContent();
+  provinceContent[currentProvId][type].splice(idx, 1);
+  renderItems(type, provinceContent[currentProvId][type]);
+  markDirty();
+}
+
+/* Tabs */
+function switchTab(tab, btn) {
+  document.querySelectorAll('.section-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.section-tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('stc-' + tab).classList.add('active');
+}
+
+/* Bg preview */
+function previewImg(inputId, previewId) {
+  const url  = document.getElementById(inputId).value;
+  const prev = document.getElementById(previewId);
+  if (url) {
+    prev.innerHTML = `<img src="${url}" onerror="this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' style=\\'width:22px;height:22px;stroke:#ccc;fill:none\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/></svg>'"/>`;
+  } else {
+    prev.innerHTML = `<svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:#ccc;fill:none;stroke-width:1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+  }
+}
+
+/* ══ SAVE ALL ══ */
+async function saveAll() {
+  if (!currentProvId) { toast('Vui lòng chọn một tỉnh!', 'error'); return; }
+  ensureContent();
+
+  // Collect current field values
+  provinceContent[currentProvId].historyBg = document.getElementById('historyBgUrl').value.trim();
+  provinceContent[currentProvId].cultureBg = document.getElementById('cultureBgUrl').value.trim();
+
+  const btn = document.getElementById('btnSaveAll');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang lưu...';
+
+  const badge = document.getElementById('provSavingBadge');
+  badge.style.display = 'flex';
+
+  try {
+    await saveProvinceToFirestore(currentProvId);
+    toast('✅ Đã lưu lên Firestore!', 'success');
+    renderProvinceList();
+  } catch(e) {
+    toast('❌ Lỗi lưu: ' + e.message, 'error');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Lưu lên Firestore';
+    badge.style.display = 'none';
+  }
+}
+
+/* ══ ADD / DELETE PROVINCE ══ */
+function showAddProvince() {
+  document.getElementById('addModal').classList.add('show');
+  setTimeout(() => document.getElementById('newProvId').focus(), 100);
+}
+function hideAddProvince() {
+  document.getElementById('addModal').classList.remove('show');
+  document.getElementById('newProvId').value   = '';
+  document.getElementById('newProvName').value = '';
+}
+
+async function addProvince() {
+  const id   = document.getElementById('newProvId').value.trim().replace(/\s+/g, '');
+  const name = document.getElementById('newProvName').value.trim();
+  if (!id || !name) { alert('Vui lòng nhập đầy đủ!'); return; }
+  if (provinceNames[id]) { alert('ID này đã tồn tại!'); return; }
+
+  provinceNames[id]   = name;
+  provinceContent[id] = { historyBg: '', cultureBg: '', features: [], history: [], culture: [] };
+
+  try {
+    await saveProvinceToFirestore(id);
+    hideAddProvince();
+    renderProvinceList();
+    selectProvince(id);
+    toast('✅ Đã thêm: ' + name, 'success');
+  } catch(e) {
+    toast('❌ Lỗi tạo tỉnh: ' + e.message, 'error');
+  }
+}
+
+async function deleteProvince(e, id) {
+  e.stopPropagation();
+  if (!confirm(`Xóa tỉnh "${provinceNames[id]}"?\nDữ liệu trên Firestore cũng sẽ bị xóa.`)) return;
+
+  try {
+    await deleteFromFirestore(id);
+    delete provinceNames[id];
+    delete provinceContent[id];
+    dirtyProvIds.delete(id);
+
+    if (currentProvId === id) {
+      currentProvId = null;
+      document.getElementById('no-selection').style.display = 'flex';
+      document.getElementById('prov-editor').style.display  = 'none';
+    }
+    renderProvinceList();
+    toast('🗑 Đã xóa tỉnh', 'success');
+  } catch(e) {
+    toast('❌ Lỗi xóa: ' + e.message, 'error');
+  }
+}
+
+/* ══ EXPORT ══ */
+function exportData() {
+  const json = JSON.stringify({ names: provinceNames, content: provinceContent }, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'province_data.json';
+  a.click();
+  toast('📁 Đã xuất province_data.json', 'success');
+}
+
+/* ══ DIRTY TRACKING ══ */
+function markDirty() {
+  if (currentProvId) {
+    dirtyProvIds.add(currentProvId);
+    renderProvinceList();
+  }
+}
+
+/* ══ HELPERS ══ */
+function ensureContent() {
+  if (!provinceContent[currentProvId]) {
+    provinceContent[currentProvId] = { historyBg: '', cultureBg: '', features: [], history: [], culture: [] };
+  }
+  ['features','history','culture'].forEach(k => {
+    if (!provinceContent[currentProvId][k]) provinceContent[currentProvId][k] = [];
+  });
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  el.id = 'toast';
+  el.classList.add('show');
+  if (type) el.classList.add(type);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 3000);
+}
+
+/* Ctrl+S shortcut */
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveAll();
+  }
+});
+
+/* Modal backdrop click */
+document.getElementById('addModal').addEventListener('click', function(e) {
+  if (e.target === this) hideAddProvince();
+});
+
+/* Enter to confirm modal */
+document.getElementById('newProvName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addProvince();
+});
+
+/* ══ INIT ══ */
+checkFirebaseConnection();
+</script>
+</body>
+</html>
