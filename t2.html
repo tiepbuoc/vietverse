@@ -745,7 +745,7 @@
       background: white;
       border-radius: 20px;
       padding: 30px;
-      width: 400px;
+      width: 420px;
       max-width: 90vw;
       box-shadow: 0 8px 40px rgba(0,0,0,0.18);
     }
@@ -782,6 +782,21 @@
     }
     #tab-province .btn-confirm:hover { background: var(--red-dark); }
 
+    /* Province selector in modal */
+    #tab-province .province-selector {
+      width: 100%;
+      padding: 9px 13px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-family: 'Be Vietnam Pro', sans-serif;
+      font-size: 13px;
+      color: #333;
+      outline: none;
+      transition: border 0.2s;
+      background: white;
+    }
+    #tab-province .province-selector:focus { border-color: var(--red); }
+
     @media(max-width:860px) {
       #tab-province .prov-layout { flex-direction: column; margin: 16px; }
       #tab-province .prov-sidebar { width: 100%; max-height: 300px; border-right: none; border-bottom: 1px solid #eee; }
@@ -815,21 +830,6 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
-
-    /* Province ID selector in modal */
-    #tab-province .province-selector {
-      width: 100%;
-      padding: 9px 13px;
-      border: 1.5px solid #e0e0e0;
-      border-radius: 10px;
-      font-family: 'Be Vietnam Pro', sans-serif;
-      font-size: 13px;
-      color: #333;
-      outline: none;
-      transition: border 0.2s;
-      background: white;
-    }
-    #tab-province .province-selector:focus { border-color: var(--red); }
   </style>
 </head>
 <body>
@@ -1249,22 +1249,16 @@
         <!-- TÊN TỈNH -->
         <div class="field-group">
           <label>Tên tỉnh (hiển thị)</label>
-          <input type="text" id="newProvName" placeholder="Hải Phòng"/>
+          <input type="text" id="newProvName" placeholder="Ví dụ: Hải Phòng"/>
         </div>
         
         <!-- CHỌN ID TỪ DANH SÁCH CÓ SẴN -->
         <div class="field-group">
-          <label>Chọn ID tỉnh (từ danh sách có sẵn)</label>
+          <label>Chọn ID tỉnh</label>
           <select class="province-selector" id="newProvIdSelector">
             <option value="">-- Chọn ID tỉnh --</option>
           </select>
-          <p class="hint" style="margin-top:4px;font-size:11px;color:#888;">Hoặc bạn có thể nhập ID tùy chỉnh bên dưới</p>
-        </div>
-        
-        <!-- HOẶC NHẬP ID TÙY CHỈNH -->
-        <div class="field-group">
-          <label>Hoặc nhập ID tùy chỉnh (không dấu, không cách)</label>
-          <input type="text" id="newProvId" placeholder="HaiPhong"/>
+          <p class="hint" style="margin-top:4px;font-size:11px;color:#888;">Chọn ID tương ứng với tỉnh bạn muốn thêm</p>
         </div>
         
         <div class="btn-row">
@@ -1347,7 +1341,6 @@
       // Init all modules
       initMinigame();
       initProvince();
-      // AR and Books will be loaded by the module script
     } else {
       currentUser = null;
       document.getElementById('auth-overlay').style.display = 'flex';
@@ -1938,8 +1931,6 @@
   });
 
   // Load AR and Books after auth
-  // The auth state listener will call these
-  // We also call them here in case auth is already logged in
   if (document.getElementById('app').style.display !== 'none') {
     arLoadList();
     booksLoadList();
@@ -1951,16 +1942,48 @@
 <!-- ============== PROVINCE MODULE ============== -->
 <script>
   // ════════════════════════════════════════════════════════════════
-  // PROVINCE MODULE - với cơ chế chọn ID từ danh sách có sẵn
+  // PROVINCE MODULE - Chỉ hiển thị tên tỉnh, tự động lấy ID
   // ════════════════════════════════════════════════════════════════
   
-  // DANH SÁCH ID TỈNH CÓ SẴN (từ dữ liệu provinceData)
-  const AVAILABLE_PROVINCE_IDS = [
-    "VN01", "VN04", "VN05", "VN09", "VN13", "VN21", "VN22", "VN23", "VN26", "VN71",
-    "VNHN", "HY_TB", "BN_BG", "HP_HD", "TN_BK", "PT_VP_HB", "NB_NĐ_HN", "LC_YB",
-    "TQ_HG", "QT_QB", "ĐN_QN", "QN_KT", "GL_BĐ", "ĐL_PY", "KH_NT", "LĐ_ĐN_BT",
-    "ĐN_BP", "TN_LA", "HCM_BRVT_BD", "ĐT_TG", "AN_KG", "VL_BT_TV", "CM_BL",
-    "CT_ST_HG", "PQ", "QĐTS", "QĐHS"
+  // DANH SÁCH TỈNH THÀNH CÓ SẴN (chỉ hiển thị tên)
+  const PROVINCE_LIST = [
+    { id: "VN01", name: "Lai Châu" },
+    { id: "VN04", name: "Cao Bằng" },
+    { id: "VN05", name: "Sơn La" },
+    { id: "VN09", name: "Lạng Sơn" },
+    { id: "VN13", name: "Quảng Ninh" },
+    { id: "VN21", name: "Thanh Hóa" },
+    { id: "VN22", name: "Nghệ An" },
+    { id: "VN23", name: "Hà Tĩnh" },
+    { id: "VN26", name: "TP Huế" },
+    { id: "VN71", name: "Điện Biên" },
+    { id: "VNHN", name: "TP Hà Nội" },
+    { id: "HY_TB", name: "Hưng Yên" },
+    { id: "BN_BG", name: "Bắc Ninh" },
+    { id: "HP_HD", name: "TP Hải Phòng" },
+    { id: "TN_BK", name: "Thái Nguyên" },
+    { id: "PT_VP_HB", name: "Phú Thọ" },
+    { id: "NB_NĐ_HN", name: "Ninh Bình" },
+    { id: "LC_YB", name: "Lào Cai" },
+    { id: "TQ_HG", name: "Tuyên Quang" },
+    { id: "QT_QB", name: "Quảng Trị" },
+    { id: "ĐN_QN", name: "TP Đà Nẵng" },
+    { id: "QN_KT", name: "Quảng Ngãi" },
+    { id: "GL_BĐ", name: "Gia Lai" },
+    { id: "ĐL_PY", name: "Đắk Lắk" },
+    { id: "KH_NT", name: "Khánh Hòa" },
+    { id: "LĐ_ĐN_BT", name: "Lâm Đồng" },
+    { id: "ĐN_BP", name: "Đồng Nai" },
+    { id: "TN_LA", name: "Tây Ninh" },
+    { id: "HCM_BRVT_BD", name: "TP Hồ Chí Minh" },
+    { id: "ĐT_TG", name: "Đồng Tháp" },
+    { id: "AN_KG", name: "An Giang" },
+    { id: "VL_BT_TV", name: "Vĩnh Long" },
+    { id: "CM_BL", name: "Cà Mau" },
+    { id: "CT_ST_HG", name: "TP Cần Thơ" },
+    { id: "PQ", name: "Đảo Phú Quốc" },
+    { id: "QĐTS", name: "Quần đảo Trường Sa" },
+    { id: "QĐHS", name: "Quần đảo Hoàng Sa" }
   ];
 
   let provinceNames = {};      // { id: displayName }
@@ -1993,27 +2016,8 @@
       });
     }
     
-    // Khi chọn ID từ dropdown, tự động điền vào input
-    const selector = document.getElementById('newProvIdSelector');
-    if (selector) {
-      selector.addEventListener('change', function() {
-        const selectedId = this.value;
-        const idInput = document.getElementById('newProvId');
-        if (selectedId) {
-          idInput.value = selectedId;
-          idInput.style.borderColor = 'var(--success)';
-        } else {
-          idInput.value = '';
-          idInput.style.borderColor = '';
-        }
-      });
-    }
-    
     // Enter để submit modal
     document.getElementById('newProvName')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') addProvince();
-    });
-    document.getElementById('newProvId')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addProvince();
     });
     document.getElementById('newProvIdSelector')?.addEventListener('keydown', e => {
@@ -2030,7 +2034,7 @@
       }
     });
     
-    // Populate ID selector
+    // Populate ID selector with province names only
     populateIdSelector();
   }
 
@@ -2038,20 +2042,21 @@
     const selector = document.getElementById('newProvIdSelector');
     if (!selector) return;
     
-    // Keep existing options
     selector.innerHTML = '';
     const firstOpt = document.createElement('option');
     firstOpt.value = '';
-    firstOpt.textContent = '-- Chọn ID tỉnh --';
+    firstOpt.textContent = '-- Chọn tỉnh thành --';
     selector.appendChild(firstOpt);
     
-    AVAILABLE_PROVINCE_IDS.forEach(id => {
-      const opt = document.createElement('option');
-      opt.value = id;
-      // Try to get name from existing data or use ID
-      const name = provinceNames[id] || id;
-      opt.textContent = `${id} - ${name}`;
-      selector.appendChild(opt);
+    // Chỉ hiển thị tên tỉnh, không hiển thị ID
+    PROVINCE_LIST.forEach(prov => {
+      // Chỉ hiển thị những tỉnh chưa có trong danh sách
+      if (!provinceNames[prov.id]) {
+        const opt = document.createElement('option');
+        opt.value = prov.id;
+        opt.textContent = prov.name;
+        selector.appendChild(opt);
+      }
     });
   }
 
@@ -2084,6 +2089,7 @@
         };
       });
 
+      // Nếu không có dữ liệu, thêm demo cho một số tỉnh
       if (Object.keys(provinceNames).length === 0) {
         addDemoData();
       }
@@ -2101,31 +2107,40 @@
   }
 
   function addDemoData() {
-    provinceNames = { 
-      "VN01": "Lai Châu", 
-      "VNHN": "TP Hà Nội",
-      "HP_HD": "TP Hải Phòng",
-      "HCM_BRVT_BD": "TP Hồ Chí Minh",
-      "ĐN_QN": "TP Đà Nẵng",
-      "PQ": "Đảo Phú Quốc",
-      "QĐTS": "Quần đảo Trường Sa",
-      "QĐHS": "Quần đảo Hoàng Sa"
-    };
-    provinceContent = {
-      "VN01": {
-        historyBg: "", cultureBg: "",
-        features: ["Thành phố cảng lớn nhất miền Bắc", "Di sản Bạch Đằng Giang"],
-        history: [{ title: "Chiến thắng Bạch Đằng", thumbUrl: "", text: "Sông Bạch Đằng ghi dấu ba trận chiến lịch sử...", img1: "", img2: "" }],
-        culture: [{ title: "Lễ hội Chọi trâu", thumbUrl: "", text: "Lễ hội Chọi trâu Đồ Sơn là di sản văn hóa...", img1: "", img2: "" }]
-      },
-      "VNHN": { historyBg: "", cultureBg: "", features: ["Thủ đô ngàn năm văn hiến"], history: [], culture: [] },
-      "HP_HD": { historyBg: "", cultureBg: "", features: [], history: [], culture: [] },
-      "HCM_BRVT_BD": { historyBg: "", cultureBg: "", features: [], history: [], culture: [] },
-      "ĐN_QN": { historyBg: "", cultureBg: "", features: [], history: [], culture: [] },
-      "PQ": { historyBg: "", cultureBg: "", features: ["Hòn đảo du lịch nổi tiếng"], history: [], culture: [] },
-      "QĐTS": { historyBg: "", cultureBg: "", features: ["Chủ quyền biển đảo Việt Nam"], history: [], culture: [] },
-      "QĐHS": { historyBg: "", cultureBg: "", features: ["Chủ quyền biển đảo Việt Nam"], history: [], culture: [] }
-    };
+    // Thêm demo cho một số tỉnh
+    const demoIds = ["VN01", "VNHN", "HP_HD", "HCM_BRVT_BD", "ĐN_QN", "PQ", "QĐTS", "QĐHS"];
+    demoIds.forEach(id => {
+      const prov = PROVINCE_LIST.find(p => p.id === id);
+      if (prov) {
+        provinceNames[id] = prov.name;
+        provinceContent[id] = {
+          historyBg: '',
+          cultureBg: '',
+          features: [],
+          history: [],
+          culture: []
+        };
+      }
+    });
+    
+    // Thêm dữ liệu mẫu cho VN01
+    if (provinceContent["VN01"]) {
+      provinceContent["VN01"].features = ["Thành phố cảng lớn nhất miền Bắc", "Di sản Bạch Đằng Giang"];
+      provinceContent["VN01"].history = [{ 
+        title: "Chiến thắng Bạch Đằng", 
+        thumbUrl: "", 
+        text: "Sông Bạch Đằng ghi dấu ba trận chiến lịch sử...", 
+        img1: "", 
+        img2: "" 
+      }];
+      provinceContent["VN01"].culture = [{ 
+        title: "Lễ hội Chọi trâu", 
+        thumbUrl: "", 
+        text: "Lễ hội Chọi trâu Đồ Sơn là di sản văn hóa...", 
+        img1: "", 
+        img2: "" 
+      }];
+    }
   }
 
   async function saveProvinceToFirestore(id) {
@@ -2355,15 +2370,13 @@
   function showAddProvince() {
     // Reset form
     const nameInput = document.getElementById('newProvName');
-    const idInput = document.getElementById('newProvId');
     const selector = document.getElementById('newProvIdSelector');
     
     if (nameInput) nameInput.value = '';
-    if (idInput) {
-      idInput.value = '';
-      idInput.style.borderColor = '';
-    }
     if (selector) selector.value = '';
+    
+    // Cập nhật lại danh sách tỉnh có thể thêm
+    populateIdSelector();
     
     const modal = document.getElementById('addModal');
     if (modal) {
@@ -2379,27 +2392,21 @@
 
   async function addProvince() {
     const name = document.getElementById('newProvName')?.value.trim() || '';
-    let id = document.getElementById('newProvId')?.value.trim().replace(/\s+/g, '') || '';
     const selectedId = document.getElementById('newProvIdSelector')?.value || '';
     
-    // Nếu có chọn từ dropdown thì ưu tiên
-    if (selectedId) {
-      id = selectedId;
-    }
-    
-    if (!id) { alert('Vui lòng nhập hoặc chọn ID tỉnh!'); return; }
+    if (!selectedId) { alert('Vui lòng chọn tỉnh thành từ danh sách!'); return; }
     if (!name) { alert('Vui lòng nhập tên tỉnh!'); return; }
-    if (provinceNames[id]) { alert(`ID "${id}" đã tồn tại!`); return; }
+    if (provinceNames[selectedId]) { alert(`Tỉnh "${provinceNames[selectedId]}" đã tồn tại!`); return; }
 
-    provinceNames[id] = name;
-    provinceContent[id] = { historyBg: '', cultureBg: '', features: [], history: [], culture: [] };
+    provinceNames[selectedId] = name;
+    provinceContent[selectedId] = { historyBg: '', cultureBg: '', features: [], history: [], culture: [] };
 
     try {
-      await saveProvinceToFirestore(id);
+      await saveProvinceToFirestore(selectedId);
       hideAddProvince();
       populateIdSelector();
       renderProvinceList();
-      selectProvince(id);
+      selectProvince(selectedId);
       showToast('✅ Đã thêm: ' + name, 'success');
     } catch (e) {
       showToast('❌ Lỗi tạo tỉnh: ' + e.message, 'error');
