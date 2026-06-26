@@ -1294,9 +1294,7 @@
     appId: "1:562837285603:web:e75d7a983e1ef644c9b3d6"
   };
   firebase.initializeApp(firebaseConfig);
-</script>
 
-<script>
   // ════════════════════════════════════════════════════════════════
   // SHARED TOAST
   // ════════════════════════════════════════════════════════════════
@@ -1349,8 +1347,7 @@
       // Init all modules
       initMinigame();
       initProvince();
-      arLoadList();
-      booksLoadList();
+      // AR and Books will be loaded by the module script
     } else {
       currentUser = null;
       document.getElementById('auth-overlay').style.display = 'flex';
@@ -1553,10 +1550,6 @@
       showToast(`🔥 Đã đặt thử thách cho ${DAY_LABELS_FULL[dayIdx]}!`, 'success');
     } catch (e) { showToast('Lỗi: ' + e.message, 'error'); }
   }
-
-  // ════════════════════════════════════════════════════════════════
-  // AR + THƯ VIỆN - Firestore v10 (ES Modules)
-  // ════════════════════════════════════════════════════════════════
 </script>
 
 <!-- ============== FIREBASE v10 MODULAR (Firestore) ============== -->
@@ -1564,7 +1557,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
     getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
-    query, orderBy, serverTimestamp
+    getDoc, setDoc, query, orderBy, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const fsApp = initializeApp({
@@ -1944,16 +1937,15 @@
     });
   });
 
-  // ===== Province: Export Firebase functions to global =====
-  window._db = db;
-  window._fsDoc = doc;
-  window._fsGetDoc = getDoc;
-  window._fsSetDoc = setDoc;
-  window._fsDelete = deleteDoc;
-  window._fsColl = collection;
-  window._fsGetDocs = getDocs;
-  window._fbReady = true;
-  document.dispatchEvent(new Event('fb-ready'));
+  // Load AR and Books after auth
+  // The auth state listener will call these
+  // We also call them here in case auth is already logged in
+  if (document.getElementById('app').style.display !== 'none') {
+    arLoadList();
+    booksLoadList();
+  }
+
+  console.log('Firestore v10 module loaded successfully!');
 </script>
 
 <!-- ============== PROVINCE MODULE ============== -->
@@ -1983,46 +1975,55 @@
 
   function setFbStatus(state, text) {
     const el = document.getElementById('fb-status');
-    el.className = 'fb-status ' + state;
-    el.querySelector('span').textContent = text;
+    if (el) {
+      el.className = 'fb-status ' + state;
+      const span = el.querySelector('span');
+      if (span) span.textContent = text;
+    }
   }
 
   function initProvince() {
     checkFirebaseConnection();
     
     // Modal events
-    document.getElementById('addModal').addEventListener('click', function (e) {
-      if (e.target === this) hideAddProvince();
-    });
+    const modal = document.getElementById('addModal');
+    if (modal) {
+      modal.addEventListener('click', function (e) {
+        if (e.target === this) hideAddProvince();
+      });
+    }
     
     // Khi chọn ID từ dropdown, tự động điền vào input
-    document.getElementById('newProvIdSelector').addEventListener('change', function() {
-      const selectedId = this.value;
-      const idInput = document.getElementById('newProvId');
-      if (selectedId) {
-        idInput.value = selectedId;
-        idInput.style.borderColor = 'var(--success)';
-      } else {
-        idInput.value = '';
-        idInput.style.borderColor = '';
-      }
-    });
+    const selector = document.getElementById('newProvIdSelector');
+    if (selector) {
+      selector.addEventListener('change', function() {
+        const selectedId = this.value;
+        const idInput = document.getElementById('newProvId');
+        if (selectedId) {
+          idInput.value = selectedId;
+          idInput.style.borderColor = 'var(--success)';
+        } else {
+          idInput.value = '';
+          idInput.style.borderColor = '';
+        }
+      });
+    }
     
     // Enter để submit modal
-    document.getElementById('newProvName').addEventListener('keydown', e => {
+    document.getElementById('newProvName')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addProvince();
     });
-    document.getElementById('newProvId').addEventListener('keydown', e => {
+    document.getElementById('newProvId')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addProvince();
     });
-    document.getElementById('newProvIdSelector').addEventListener('keydown', e => {
+    document.getElementById('newProvIdSelector')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') addProvince();
     });
 
     // Ctrl+S
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        if (document.getElementById('tab-province').classList.contains('active')) {
+        if (document.getElementById('tab-province')?.classList.contains('active')) {
           e.preventDefault();
           saveAll();
         }
@@ -2035,11 +2036,14 @@
 
   function populateIdSelector() {
     const selector = document.getElementById('newProvIdSelector');
+    if (!selector) return;
+    
     // Keep existing options
-    const firstOption = selector.querySelector('option[value=""]');
     selector.innerHTML = '';
-    selector.appendChild(firstOption || document.createElement('option'));
-    selector.querySelector('option[value=""]').textContent = '-- Chọn ID tỉnh --';
+    const firstOpt = document.createElement('option');
+    firstOpt.value = '';
+    firstOpt.textContent = '-- Chọn ID tỉnh --';
+    selector.appendChild(firstOpt);
     
     AVAILABLE_PROVINCE_IDS.forEach(id => {
       const opt = document.createElement('option');
@@ -2097,7 +2101,6 @@
   }
 
   function addDemoData() {
-    // Sử dụng các ID từ danh sách có sẵn
     provinceNames = { 
       "VN01": "Lai Châu", 
       "VNHN": "TP Hà Nội",
@@ -2147,8 +2150,10 @@
   }
 
   function renderProvinceList() {
-    const q = (document.getElementById('searchInput').value || '').toLowerCase();
+    const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
     const list = document.getElementById('province-list');
+    if (!list) return;
+    
     const ids = Object.keys(provinceNames).filter(id =>
       id.toLowerCase().includes(q) || (provinceNames[id] || '').toLowerCase().includes(q)
     );
@@ -2174,14 +2179,21 @@
 
   function renderEditor() {
     if (!currentProvId) return;
-    document.getElementById('no-selection').style.display = 'none';
-    document.getElementById('prov-editor').style.display = 'block';
-    document.getElementById('editorTitle').textContent = (provinceNames[currentProvId] || currentProvId).toUpperCase();
-    document.getElementById('editorId').textContent = currentProvId;
+    const noSel = document.getElementById('no-selection');
+    const editor = document.getElementById('prov-editor');
+    if (noSel) noSel.style.display = 'none';
+    if (editor) editor.style.display = 'block';
+    
+    const titleEl = document.getElementById('editorTitle');
+    if (titleEl) titleEl.textContent = (provinceNames[currentProvId] || currentProvId).toUpperCase();
+    const idEl = document.getElementById('editorId');
+    if (idEl) idEl.textContent = currentProvId;
 
     const c = provinceContent[currentProvId] || {};
-    document.getElementById('historyBgUrl').value = c.historyBg || '';
-    document.getElementById('cultureBgUrl').value = c.cultureBg || '';
+    const hBg = document.getElementById('historyBgUrl');
+    const cBg = document.getElementById('cultureBgUrl');
+    if (hBg) hBg.value = c.historyBg || '';
+    if (cBg) cBg.value = c.cultureBg || '';
     previewImg('historyBgUrl', 'prevHist');
     previewImg('cultureBgUrl', 'prevCult');
 
@@ -2191,7 +2203,9 @@
   }
 
   function renderFeatures(feats) {
-    document.getElementById('featuresList').innerHTML = feats.map((f, i) => `
+    const container = document.getElementById('featuresList');
+    if (!container) return;
+    container.innerHTML = feats.map((f, i) => `
       <div class="feature-row">
         <input type="text" value="${escHtml(f)}" placeholder="Đặc điểm..."
                oninput="updateFeature(${i},this.value)" onchange="markDirty()"/>
@@ -2224,7 +2238,10 @@
 
   function renderItems(type, items) {
     const gridId = type === 'history' ? 'historyItemsGrid' : 'cultureItemsGrid';
-    document.getElementById(gridId).innerHTML = items.map((item, idx) => `
+    const container = document.getElementById(gridId);
+    if (!container) return;
+    
+    container.innerHTML = items.map((item, idx) => `
       <div class="item-card">
         <div class="item-card-head">
           <span>#${idx + 1} ${escHtml(item.title || 'Chưa đặt tên')}</span>
@@ -2289,8 +2306,11 @@
   }
 
   function previewImg(inputId, previewId) {
-    const url = document.getElementById(inputId).value;
+    const input = document.getElementById(inputId);
     const prev = document.getElementById(previewId);
+    if (!input || !prev) return;
+    
+    const url = input.value;
     if (url) {
       prev.innerHTML = `<img src="${url}" onerror="this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' style=\\'width:22px;height:22px;stroke:#ccc;fill:none\\'><rect x=\\'3\\' y=\\'3\\' width=\\'18\\' height=\\'18\\' rx=\\'2\\'/></svg>'"/>`;
     } else {
@@ -2302,15 +2322,19 @@
     if (!currentProvId) { showToast('Vui lòng chọn một tỉnh!', 'error'); return; }
     ensureContent();
 
-    provinceContent[currentProvId].historyBg = document.getElementById('historyBgUrl').value.trim();
-    provinceContent[currentProvId].cultureBg = document.getElementById('cultureBgUrl').value.trim();
+    const hBg = document.getElementById('historyBgUrl');
+    const cBg = document.getElementById('cultureBgUrl');
+    if (hBg) provinceContent[currentProvId].historyBg = hBg.value.trim();
+    if (cBg) provinceContent[currentProvId].cultureBg = cBg.value.trim();
 
     const btn = document.getElementById('btnSaveProv');
-    btn.disabled = true;
-    btn.textContent = '⏳ Đang lưu...';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang lưu...';
+    }
 
     const badge = document.getElementById('provSavingBadge');
-    badge.style.display = 'flex';
+    if (badge) badge.style.display = 'flex';
 
     try {
       await saveProvinceToFirestore(currentProvId);
@@ -2320,31 +2344,43 @@
       showToast('❌ Lỗi lưu: ' + e.message, 'error');
       console.error(e);
     } finally {
-      btn.disabled = false;
-      btn.textContent = '💾 Lưu';
-      badge.style.display = 'none';
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '💾 Lưu';
+      }
+      if (badge) badge.style.display = 'none';
     }
   }
 
   function showAddProvince() {
     // Reset form
-    document.getElementById('newProvName').value = '';
-    document.getElementById('newProvId').value = '';
-    document.getElementById('newProvIdSelector').value = '';
-    document.getElementById('newProvId').style.borderColor = '';
+    const nameInput = document.getElementById('newProvName');
+    const idInput = document.getElementById('newProvId');
+    const selector = document.getElementById('newProvIdSelector');
     
-    document.getElementById('addModal').classList.add('show');
-    setTimeout(() => document.getElementById('newProvName').focus(), 100);
+    if (nameInput) nameInput.value = '';
+    if (idInput) {
+      idInput.value = '';
+      idInput.style.borderColor = '';
+    }
+    if (selector) selector.value = '';
+    
+    const modal = document.getElementById('addModal');
+    if (modal) {
+      modal.classList.add('show');
+      setTimeout(() => nameInput?.focus(), 100);
+    }
   }
 
   function hideAddProvince() {
-    document.getElementById('addModal').classList.remove('show');
+    const modal = document.getElementById('addModal');
+    if (modal) modal.classList.remove('show');
   }
 
   async function addProvince() {
-    const name = document.getElementById('newProvName').value.trim();
-    let id = document.getElementById('newProvId').value.trim().replace(/\s+/g, '');
-    const selectedId = document.getElementById('newProvIdSelector').value;
+    const name = document.getElementById('newProvName')?.value.trim() || '';
+    let id = document.getElementById('newProvId')?.value.trim().replace(/\s+/g, '') || '';
+    const selectedId = document.getElementById('newProvIdSelector')?.value || '';
     
     // Nếu có chọn từ dropdown thì ưu tiên
     if (selectedId) {
@@ -2382,8 +2418,10 @@
 
       if (currentProvId === id) {
         currentProvId = null;
-        document.getElementById('no-selection').style.display = 'flex';
-        document.getElementById('prov-editor').style.display = 'none';
+        const noSel = document.getElementById('no-selection');
+        const editor = document.getElementById('prov-editor');
+        if (noSel) noSel.style.display = 'flex';
+        if (editor) editor.style.display = 'none';
       }
       populateIdSelector();
       renderProvinceList();
@@ -2426,6 +2464,28 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
   }
+
+  // Expose functions to global scope
+  window.initProvince = initProvince;
+  window.renderProvinceList = renderProvinceList;
+  window.selectProvince = selectProvince;
+  window.addFeature = addFeature;
+  window.updateFeature = updateFeature;
+  window.removeFeature = removeFeature;
+  window.addItem = addItem;
+  window.updateItem = updateItem;
+  window.deleteItem = deleteItem;
+  window.switchTab = switchTab;
+  window.previewImg = previewImg;
+  window.saveAll = saveAll;
+  window.showAddProvince = showAddProvince;
+  window.hideAddProvince = hideAddProvince;
+  window.addProvince = addProvince;
+  window.deleteProvince = deleteProvince;
+  window.exportData = exportData;
+  window.markDirty = markDirty;
+  window.ensureContent = ensureContent;
+  window.escHtml = escHtml;
 </script>
 
 </body>
