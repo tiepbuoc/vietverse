@@ -7,7 +7,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap" rel="stylesheet" />
 
-  <!-- AR engine: chỉ thật sự khởi động camera khi người dùng bấm "Bắt đầu" -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
   <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
@@ -98,7 +97,7 @@
     .bg-video{position:fixed;top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;}
     .video-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(100,0,0,.36);z-index:1;pointer-events:none;}
 
-    /* ===== NAVBAR (đồng bộ với library.html) ===== */
+    /* ===== NAVBAR ===== */
     .navbar{
       position:fixed;top:0;left:0;width:100%;height:var(--nh);
       background:#fff;display:flex;align-items:center;justify-content:space-between;
@@ -259,15 +258,9 @@
     #arSceneHost{position:absolute;inset:0;}
     #arSceneHost a-scene{width:100%;height:100%;}
 
-    /* Đảm bảo thẻ <video> camera mà AR.js tự chèn vào <body> luôn hiển thị,
-       không bị nền video trang trí / lớp overlay đỏ che mất */
     body.ar-active .bg-video,
-    body.ar-active .video-overlay{
-      display:none;
-    }
-    body > video:not(.bg-video){
-      z-index:4990 !important;
-    }
+    body.ar-active .video-overlay{ display:none; }
+    body > video:not(.bg-video){ z-index:4990 !important; }
 
     .ar-hud-top{
       position:fixed;top:0;left:0;width:100%;z-index:5100;
@@ -397,7 +390,7 @@
   </div>
 </section>
 
-<!-- AR CAMERA STAGE (chỉ render khi bấm Bắt đầu) -->
+<!-- AR CAMERA STAGE -->
 <div id="arStage">
   <div class="ar-hud-top">
     <button class="ar-close-btn" onclick="window._stopAR()" title="Thoát AR">✕</button>
@@ -433,50 +426,73 @@
 })();
 
 /* ============================================================
-   AR MULTI-MARKER ENGINE
-   - Mỗi ar_item -> 1 <a-marker> (pattern) chứa model "on-marker"
-   - Mỗi item còn có 1 "model persist" đặt ở scene root, ẩn mặc định.
-   - Khi markerFound: hiện model-on-marker, ẩn persist.
-   - Khi markerLost: copy world transform cuối cùng sang persist,
-     hiện persist (đứng yên), ẩn model-on-marker.
-   - Tất cả marker hoạt động độc lập -> quét được NHIỀU marker cùng lúc.
+   AR MULTI-MARKER ENGINE  — cơ chế theo index.html
+   ─────────────────────────────────────────────────────────────
+   Mỗi ar_item → 1 <a-marker> chứa model "on-marker"
+                 + 1 <a-entity> "persist" ở scene root (visible=false)
+
+   markerFound  → ẩn persist, hiện on-marker
+   markerLost   → copy world transform → hiện persist (đứng yên)
+
+   RAF liên tục copy world transform khi marker đang visible
+   (giống updateLoop trong index.html) để persist luôn sẵn sàng.
    ============================================================ */
+
   let arStarted = false;
-  let trackerStates = []; // { visible, markerEl, onmarkerEl, persistEl }
+  // trackerStates[i] = { visible, markerEl, onMarkerEl, persistEl }
+  let trackerStates = [];
   let rafId = null;
   let pattBlobUrls = [];
 
   function escAttr(s){ return String(s).replace(/"/g,'&quot;'); }
 
-  function buildSceneHTML(items){
+  /* Sinh HTML cho <a-scene> — dùng <a-asset-item> như index.html */
+  function buildSceneHTML(items) {
+    // <a-assets> — preload từng model
+    const assetItems = items.map((item, i) =>
+      `<a-asset-item id="ar-asset-${i}" src="${escAttr(item.modelUrl)}"></a-asset-item>`
+    ).join('\n');
+
+    // <a-marker> chứa model on-marker  (preset="custom" như index.html)
     const markers = items.map((item, i) => {
-      const s = item.scale ?? 0.3;
-      const y = item.positionY ?? 0.5;
-      const loop = item.loopAnim === false ? 'pause' : 'repeat';
+      const s  = item.scale      ?? 0.3;
+      const y  = item.positionY  ?? 0.5;
+      const lp = item.loopAnim === false ? 'pause' : 'repeat';
       return `
-        <a-marker id="ar-marker-${i}" type="pattern" url="${pattBlobUrls[i]}" emitevents="true">
-          <a-entity id="ar-onmarker-${i}"
-            gltf-model="url(${escAttr(item.modelUrl)})"
+        <a-marker
+          id="ar-marker-${i}"
+          type="pattern"
+          preset="custom"
+          url="${pattBlobUrls[i]}"
+          emitevents="true"
+        >
+          <a-entity
+            id="ar-onmarker-${i}"
+            gltf-model="#ar-asset-${i}"
             scale="${s} ${s} ${s}"
             position="0 ${y} 0"
-            animation-mixer="loop: ${loop}"
+            animation-mixer="loop: ${lp}"
             gesture-handler
-            visible="true"></a-entity>
+            visible="true"
+          ></a-entity>
         </a-marker>`;
     }).join('\n');
 
+    // <a-entity> persist ở scene root — hidden mặc định
     const persists = items.map((item, i) => {
-      const s = item.scale ?? 0.3;
-      const y = item.positionY ?? 0.5;
-      const loop = item.loopAnim === false ? 'pause' : 'repeat';
+      const s  = item.scale      ?? 0.3;
+      const y  = item.positionY  ?? 0.5;
+      const lp = item.loopAnim === false ? 'pause' : 'repeat';
       return `
-        <a-entity id="ar-persist-${i}"
-          gltf-model="url(${escAttr(item.modelUrl)})"
+        <a-entity
+          id="ar-persist-${i}"
+          gltf-model="#ar-asset-${i}"
           scale="${s} ${s} ${s}"
           position="0 ${y} 0"
-          animation-mixer="loop: ${loop}"
+          animation-mixer="loop: ${lp}"
           gesture-handler
-          visible="false"></a-entity>`;
+          visible="false"
+        ></a-entity>`;
     }).join('\n');
 
     return `
@@ -488,7 +504,9 @@
         embedded
         gesture-detector
       >
-        <a-assets></a-assets>
+        <a-assets>
+          ${assetItems}
+        </a-assets>
         <a-entity light="type: ambient; color: #ffffff; intensity: 1"></a-entity>
         <a-entity light="type: directional; color: #ffffff; intensity: 0.9" position="0.5 1 1"></a-entity>
         ${markers}
@@ -497,19 +515,18 @@
       </a-scene>`;
   }
 
-  function updateTrackCount(){
-    const total = trackerStates.length;
-    const visible = trackerStates.filter(s=>s.visible).length;
-    document.getElementById('arTrackCount').textContent = `🔍 ${visible} / ${total} marker đang hiển thị`;
-  }
+  /* Copy world-transform của on-marker sang persist (chạy mỗi RAF khi visible) */
+  function updatePersistTransform(state) {
+    if (!state.visible) return;
+    const obj = state.onMarkerEl && state.onMarkerEl.object3D;
+    if (!obj) return;
 
-  function updatePersistTransform(state){
-    if (!state.visible || !state.onmarkerEl || !state.onmarkerEl.object3D) return;
-    const worldPos = new THREE.Vector3();
+    const worldPos  = new THREE.Vector3();
     const worldQuat = new THREE.Quaternion();
-    state.onmarkerEl.object3D.getWorldPosition(worldPos);
-    state.onmarkerEl.object3D.getWorldQuaternion(worldQuat);
+    obj.getWorldPosition(worldPos);
+    obj.getWorldQuaternion(worldQuat);
     const worldRot = new THREE.Euler().setFromQuaternion(worldQuat);
+
     state.persistEl.setAttribute('position', { x: worldPos.x, y: worldPos.y, z: worldPos.z });
     state.persistEl.setAttribute('rotation', {
       x: worldRot.x * 180 / Math.PI,
@@ -518,23 +535,33 @@
     });
   }
 
-  function updateLoop(){
+  /* HUD counter */
+  function updateTrackCount() {
+    const total   = trackerStates.length;
+    const visible = trackerStates.filter(s => s.visible).length;
+    document.getElementById('arTrackCount').textContent =
+      `🔍 ${visible} / ${total} marker đang hiển thị`;
+  }
+
+  /* RAF loop — copy transform liên tục khi marker đang visible (như index.html) */
+  function updateLoop() {
     trackerStates.forEach(updatePersistTransform);
     rafId = requestAnimationFrame(updateLoop);
   }
 
-  window._startAR = async function(){
+  /* ─── START AR ─────────────────────────────────────────── */
+  window._startAR = async function() {
     const items = window._arItems || [];
     if (!items.length) return;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showArError('Trình duyệt này không hỗ trợ truy cập camera (getUserMedia). Hãy thử Chrome/Safari bản mới trên HTTPS.');
+      showArError('Trình duyệt này không hỗ trợ truy cập camera. Hãy thử Chrome/Safari bản mới trên HTTPS.');
       return;
     }
 
     document.body.classList.add('ar-active');
     document.getElementById('arLoadingOverlay').classList.add('active');
 
-    // Tạo Blob URL từ pattData lưu sẵn trong Firestore -> dùng làm "file .patt" cho AR.js
+    // Tạo Blob URL từ pattData lưu trong Firestore
     pattBlobUrls = items.map(item => {
       const blob = new Blob([item.pattData || ''], { type: 'text/plain' });
       return URL.createObjectURL(blob);
@@ -549,53 +576,66 @@
 
     sceneEl.addEventListener('loaded', () => {
       document.getElementById('arLoadingOverlay').classList.remove('active');
-      trackerStates = items.map((item, i) => {
-        const markerEl = document.getElementById(`ar-marker-${i}`);
-        const onmarkerEl = document.getElementById(`ar-onmarker-${i}`);
-        const persistEl = document.getElementById(`ar-persist-${i}`);
-        const state = { visible: false, markerEl, onmarkerEl, persistEl, name: item.name };
 
+      // Khởi tạo tracker state cho từng item
+      trackerStates = items.map((item, i) => {
+        const markerEl   = document.getElementById(`ar-marker-${i}`);
+        const onMarkerEl = document.getElementById(`ar-onmarker-${i}`);
+        const persistEl  = document.getElementById(`ar-persist-${i}`);
+
+        const state = { visible: false, markerEl, onMarkerEl, persistEl, name: item.name };
+
+        /* markerFound — ẩn persist, hiện on-marker */
         markerEl.addEventListener('markerFound', () => {
-          console.log(`✅ Đã tìm thấy marker: "${item.name}"`);
+          console.log(`✅ Marker found: "${item.name}"`);
           state.visible = true;
-          persistEl.setAttribute('visible', 'false');
-          onmarkerEl.setAttribute('visible', 'true');
+          persistEl.setAttribute('visible',  'false');
+          onMarkerEl.setAttribute('visible', 'true');
           updateTrackCount();
         });
+
+        /* markerLost — copy transform lần cuối, ẩn on-marker, hiện persist */
         markerEl.addEventListener('markerLost', () => {
-          console.log(`⚠️ Mất dấu marker: "${item.name}"`);
-          updatePersistTransform(state);
+          console.log(`⚠️ Marker lost: "${item.name}"`);
+          updatePersistTransform(state);   // snapshot vị trí cuối
           state.visible = false;
-          onmarkerEl.setAttribute('visible', 'false');
-          persistEl.setAttribute('visible', 'true');
+          onMarkerEl.setAttribute('visible', 'false');
+          persistEl.setAttribute('visible',  'true');
           updateTrackCount();
         });
-        onmarkerEl.addEventListener('model-loaded', () => {
-          console.log(`📦 Model "${item.name}" đã tải xong từ:`, item.modelUrl);
-        });
-        onmarkerEl.addEventListener('model-error', (e) => {
-          console.error(`❌ Lỗi tải model "${item.name}" từ URL:`, item.modelUrl, e.detail);
-        });
+
+        onMarkerEl.addEventListener('model-loaded', () =>
+          console.log(`📦 Model loaded: "${item.name}"`));
+        onMarkerEl.addEventListener('model-error', e =>
+          console.error(`❌ Model error: "${item.name}"`, e.detail));
+
         return state;
       });
+
       updateTrackCount();
-      rafId = requestAnimationFrame(updateLoop);
+
+      // Đợi 1 s (như index.html) rồi mới start RAF loop
+      setTimeout(() => {
+        console.log('Scene ready — starting update loop');
+        rafId = requestAnimationFrame(updateLoop);
+      }, 1000);
+
       arStarted = true;
     });
 
     sceneEl.addEventListener('arjs-error', () => {
       document.getElementById('arLoadingOverlay').classList.remove('active');
-      showArError('Không thể khởi động camera. Hãy kiểm tra quyền truy cập camera và đảm bảo trang đang chạy trên HTTPS.');
+      showArError('Không thể khởi động camera. Kiểm tra quyền camera và đảm bảo trang chạy trên HTTPS.');
     });
   };
 
-  window._stopAR = function(){
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
+  /* ─── STOP AR ──────────────────────────────────────────── */
+  window._stopAR = function() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     trackerStates = [];
     arStarted = false;
 
-    // Dừng hẳn camera stream để giải phóng thiết bị
+    // Dừng camera stream
     const video = document.querySelector('#arSceneHost video');
     if (video && video.srcObject) {
       video.srcObject.getTracks().forEach(t => t.stop());
@@ -612,7 +652,7 @@
     document.querySelector('.ar-section').style.display = '';
   };
 
-  function showArError(msg){
+  function showArError(msg) {
     document.getElementById('arErrorMsg').textContent = msg;
     document.getElementById('arErrorOverlay').classList.add('active');
   }
