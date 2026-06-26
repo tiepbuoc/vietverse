@@ -489,6 +489,8 @@
         gesture-detector
       >
         <a-assets></a-assets>
+        <a-entity light="type: ambient; color: #ffffff; intensity: 1"></a-entity>
+        <a-entity light="type: directional; color: #ffffff; intensity: 0.9" position="0.5 1 1"></a-entity>
         ${markers}
         ${persists}
         <a-entity camera></a-entity>
@@ -554,20 +556,25 @@
         const state = { visible: false, markerEl, onmarkerEl, persistEl, name: item.name };
 
         markerEl.addEventListener('markerFound', () => {
+          console.log(`✅ Đã tìm thấy marker: "${item.name}"`);
           state.visible = true;
           persistEl.setAttribute('visible', 'false');
           onmarkerEl.setAttribute('visible', 'true');
           updateTrackCount();
         });
         markerEl.addEventListener('markerLost', () => {
+          console.log(`⚠️ Mất dấu marker: "${item.name}"`);
           updatePersistTransform(state);
           state.visible = false;
           onmarkerEl.setAttribute('visible', 'false');
           persistEl.setAttribute('visible', 'true');
           updateTrackCount();
         });
+        onmarkerEl.addEventListener('model-loaded', () => {
+          console.log(`📦 Model "${item.name}" đã tải xong từ:`, item.modelUrl);
+        });
         onmarkerEl.addEventListener('model-error', (e) => {
-          console.error(`Lỗi tải model "${item.name}":`, e.detail);
+          console.error(`❌ Lỗi tải model "${item.name}" từ URL:`, item.modelUrl, e.detail);
         });
         return state;
       });
