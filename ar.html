@@ -631,36 +631,21 @@ async function launchAR(modelUrl) {
     return;
   }
 
-  // Bắt đầu WebXR session — thử từng config từ đầy đủ đến tối giản
+  // Bắt đầu WebXR session
   try {
-    const configs = [
-      // Đầy đủ: hit-test + dom-overlay
-      { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay','light-estimation'], domOverlay: { root: document.body } },
-      // Không dom-overlay (một số thiết bị reject khi có)
-      { requiredFeatures: ['hit-test'], optionalFeatures: ['light-estimation'] },
-      // Tối giản: không hit-test, không overlay
-      { requiredFeatures: [], optionalFeatures: [] },
-    ];
-
-    let lastErr = null;
-    for (const cfg of configs) {
-      try { xrSession = await navigator.xr.requestSession('immersive-ar', cfg); break; }
-      catch (e) { lastErr = e; console.warn('AR config thất bại, thử config đơn giản hơn:', e.message); }
-    }
-    if (!xrSession) throw lastErr;
+    xrSession = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['hit-test'],
+      optionalFeatures: ['dom-overlay', 'light-estimation'],
+      domOverlay: { root: document.body }
+    });
 
     renderer.xr.setReferenceSpaceType('local');
     await renderer.xr.setSession(xrSession);
 
-    // Thử bật hit-test nếu session hỗ trợ
-    try {
-      const viewerSpace = await xrSession.requestReferenceSpace('viewer');
-      hitTestSource     = await xrSession.requestHitTestSource({ space: viewerSpace });
-    } catch (_) {
-      hitTestSource = null; // sẽ dùng fallback tap-to-place cố định
-    }
+    const viewerSpace = await xrSession.requestReferenceSpace('viewer');
+    hitTestSource     = await xrSession.requestHitTestSource({ space: viewerSpace });
 
-    // Reticle (chỉ hiện khi có hit-test)
+    // Reticle
     reticle = new THREE.Mesh(
       new THREE.RingGeometry(0.06, 0.08, 32).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({ color: 0xf5c842, side: THREE.DoubleSide })
@@ -672,32 +657,17 @@ async function launchAR(modelUrl) {
     arStage.classList.add('active');
     overlay.classList.add('active');
     document.body.classList.add('ar-active');
-    arHint.textContent = hitTestSource
-      ? '📷 Di chuyển camera để quét mặt phẳng...'
-      : '👆 Tap màn hình để đặt mô hình trước mặt bạn';
+    arHint.textContent = '📷 Di chuyển camera để quét mặt phẳng...';
 
     // Tap để đặt model
-    xrSession.addEventListener('select', (ev) => {
-      if (!currentModel) return;
+    xrSession.addEventListener('select', () => {
+      if (!reticle.visible || !currentModel) return;
       if (placedModel) scene.remove(placedModel);
       placedModel = currentModel.clone(true);
-
-      if (hitTestSource && reticle.visible) {
-        // Đặt tại vị trí reticle (hit-test)
-        const pos = new THREE.Vector3().setFromMatrixPosition(
-          new THREE.Matrix4().fromArray(reticle.matrix.elements)
-        );
-        placedModel.position.copy(pos);
-      } else {
-        // Fallback: đặt 1.5m trước mặt camera
-        const camPos = new THREE.Vector3();
-        const camDir = new THREE.Vector3();
-        camera.getWorldPosition(camPos);
-        camera.getWorldDirection(camDir);
-        placedModel.position.copy(camPos).addScaledVector(camDir, 1.5);
-        placedModel.position.y -= 0.2;
-      }
-
+      const pos = new THREE.Vector3().setFromMatrixPosition(
+        new THREE.Matrix4().fromArray(reticle.matrix.elements)
+      );
+      placedModel.position.copy(pos);
       scene.add(placedModel);
       arHint.textContent = '✅ Tap lại để di chuyển mô hình.';
     });
