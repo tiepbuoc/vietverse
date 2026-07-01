@@ -13,11 +13,9 @@
 <!-- XR Extras (loading screen, error handling, coaching overlay) -->
 <script src="https://cdn.jsdelivr.net/npm/@8thwall/xrextras@1/dist/xrextras.js"></script>
 
-<!-- Three.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r170/three.min.js"></script>
-<!-- GLTFLoader via importmap workaround: dùng CDN UMD -->
-<script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/DRACOLoader.js"></script>
+<!-- Three.js + GLTFLoader — cùng nguồn jsdelivr, load đồng bộ -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <style>
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
@@ -551,10 +549,7 @@
   /* ── Pre-load model ── */
   function preloadModel(url) {
     return new Promise((resolve, reject) => {
-      const dracoLoader = new THREE.DRACOLoader();
-      dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/libs/draco/');
       const loader = new THREE.GLTFLoader();
-      loader.setDRACOLoader(dracoLoader);
       loader.load(url, gltf => {
         const model = gltf.scene;
         // auto-scale
